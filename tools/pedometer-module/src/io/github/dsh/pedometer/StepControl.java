@@ -198,8 +198,7 @@ final class StepControl {
                         hi = Double.parseDouble(p[3]);
                         sd = Long.parseLong(p[4]);
                     } catch (Throwable ex) { out.println("ERR BAD_PARAM"); continue; }
-                    if (!Double.isFinite(lo) || !Double.isFinite(hi) || lo <= 0 || hi <= 0
-                            || lo > 300 || hi > 300 || lo > hi) {
+                    if (!Double.isFinite(lo) || !Double.isFinite(hi) || lo < 1 || hi > 300 || lo > hi) {
                         out.println("ERR BAD_RANGE"); continue;
                     }
                     long baseline;

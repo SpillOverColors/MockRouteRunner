@@ -12,8 +12,10 @@ import java.util.Random;
  * smoothly varying lateral offset. No per-tick random scatter and no whole-track shift.
  */
 public final class MotionSimulator {
-    public static final double MIN_PACE_SEC_PER_KM = 390.0;
-    public static final double MAX_PACE_SEC_PER_KM = 470.0;
+    public static final double MIN_PACE_SEC_PER_KM = 180.0;
+    public static final double MAX_PACE_SEC_PER_KM = 600.0;
+    public static final double MIN_CADENCE_SPM = 1.0;
+    public static final double MAX_CADENCE_SPM = 300.0;
 
     private final RouteSet routes;
     private final Random random;
@@ -46,7 +48,7 @@ public final class MotionSimulator {
         }
         if (fastPaceSecPerKm < MIN_PACE_SEC_PER_KM - 1e-9
                 || slowPaceSecPerKm > MAX_PACE_SEC_PER_KM + 1e-9) {
-            throw new IllegalArgumentException("配速须在 390–470 秒/公里");
+            throw new IllegalArgumentException("配速须在 180–600 秒/公里（3:00–10:00）");
         }
         double vFast = 1000.0 / fastPaceSecPerKm;
         double vSlow = 1000.0 / slowPaceSecPerKm;
@@ -203,7 +205,7 @@ public final class MotionSimulator {
             // random transition state is untouched; and restore the last good step
             // rather than ever exceeding the upper bound.
             double minChord = slowSpeed * dtSeconds * 1.002;
-            double maxChord = fastSpeed * dtSeconds * 0.999;
+            double maxChord = fastSpeed * dtSeconds;
             double targetChord = Math.min(minChord, maxChord);
             double pathRemaining = currentPathRemaining();
             double extraLimit = Math.min(desired * 0.5 + 0.5,
@@ -358,7 +360,11 @@ public final class MotionSimulator {
     }
 
     public double cadence(double cadenceMin, double cadenceMax) {
-        if (cadenceMax < cadenceMin) { double t = cadenceMin; cadenceMin = cadenceMax; cadenceMax = t; }
+        if (!Double.isFinite(cadenceMin) || !Double.isFinite(cadenceMax)
+                || cadenceMin < MIN_CADENCE_SPM || cadenceMax > MAX_CADENCE_SPM
+                || cadenceMin > cadenceMax) {
+            throw new IllegalArgumentException("步频上下限须在 1–300 spm，且下限 ≤ 上限");
+        }
         double mid = (cadenceMin + cadenceMax) / 2.0;
         double amp = (cadenceMax - cadenceMin) / 2.0 * 0.9;
         double w = 0.65 * Math.sin(2 * Math.PI * elapsed / 97.0 + phase3)

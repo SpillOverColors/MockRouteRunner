@@ -30,6 +30,8 @@ public final class CoreTests {
             testFinalTickSpeed();
             testJunctionSwitching();
             testCadenceAndPaceRange();
+            testWidePaceMotion();
+            testParameterBoundaries();
             testBreakpointSnapshot();
             testBreakpointMidTransition();
             testCleanupStatus();
@@ -382,6 +384,96 @@ public final class CoreTests {
         }
         check("multiple junction switches", switches >= 1);
         check("junction no teleport", maxStep < 0.4);
+    }
+
+    private static void testWidePaceMotion() {
+        RouteModel.RouteSet rs = twoLoops();
+        int[][] ranges = {{180, 600}, {300, 450}};
+        for (int[] pair : ranges) {
+            MotionSimulator sim = new MotionSimulator(rs, pair[0], pair[1], 3000, 0.2, 11L);
+            RouteModel.GeoPoint prev = sim.point();
+            double min = Double.MAX_VALUE, max = 0;
+            for (int i = 0; i < 3000 && !sim.reachedTarget(); i++) {
+                sim.advance(1.0);
+                RouteModel.GeoPoint p = sim.point();
+                double speed = RouteModel.GeoMath.distance(prev, p);
+                if (!sim.reachedTarget()) {
+                    min = Math.min(min, speed);
+                    max = Math.max(max, speed);
+                }
+                prev = p;
+            }
+            double low = 1000.0 / pair[1];
+            double high = 1000.0 / pair[0];
+            check(String.format(Locale.US, "%d/%d wide speed min %.4f >= %.4f", pair[0], pair[1], min, low),
+                    min >= low * 0.995);
+            check(String.format(Locale.US, "%d/%d wide speed max %.4f <= %.4f", pair[0], pair[1], max, high),
+                    max <= high * 1.002);
+        }
+        MotionSimulator cadence = new MotionSimulator(rs, 180, 600, 3000, 0.2, 1L);
+        double lo = 999, hi = 0;
+        for (int i = 0; i < 1000; i++) {
+            cadence.advance(0.2);
+            double c = cadence.cadence(1, 300);
+            lo = Math.min(lo, c);
+            hi = Math.max(hi, c);
+        }
+        check(String.format(Locale.US, "cadence 1..300 range %.2f..%.2f", lo, hi), lo >= 0.9 && hi <= 300.1);
+        testEqualPaceStraight();
+    }
+
+    private static void testEqualPaceStraight() {
+        RouteModel.RouteSet rs = RouteModel.parseJson(
+                "{\"name\":\"straight\",\"closed\":false,\"points\":[[0,0],[0,0.02]]}", "straight.json");
+        for (int pace : new int[]{180, 600}) {
+            MotionSimulator sim = new MotionSimulator(rs, pace, pace, 300, 0.2, 3L);
+            RouteModel.GeoPoint prev = sim.point();
+            double min = Double.MAX_VALUE, max = 0;
+            for (int i = 0; i < 200 && !sim.reachedTarget(); i++) {
+                sim.advance(1.0);
+                RouteModel.GeoPoint p = sim.point();
+                if (!sim.reachedTarget()) {
+                    double speed = RouteModel.GeoMath.distance(prev, p);
+                    min = Math.min(min, speed);
+                    max = Math.max(max, speed);
+                }
+                prev = p;
+            }
+            double limit = 1000.0 / pace;
+            check(String.format(Locale.US, "equal %d straight min %.4f", pace, min), min >= limit * 0.999);
+            check(String.format(Locale.US, "equal %d straight max %.4f", pace, max), max <= limit * 1.001);
+        }
+    }
+
+    private static void testParameterBoundaries() {
+        RouteModel.RouteSet rs = twoLoops();
+        try {
+            new MotionSimulator(rs, 179, 600, 1000, 0.2, 1L);
+            fail("pace lower bound", "accepted 179");
+        } catch (IllegalArgumentException e) { check("pace lower message", e.getMessage().contains("180")); }
+        try {
+            new MotionSimulator(rs, 180, 601, 1000, 0.2, 1L);
+            fail("pace upper bound", "accepted 601");
+        } catch (IllegalArgumentException e) { check("pace upper message", e.getMessage().contains("600")); }
+        try {
+            new MotionSimulator(rs, 180, 600, 100001, 0.2, 1L);
+            check("distance 100001 accepted", true);
+        } catch (IllegalArgumentException e) { fail("distance 100001", e.toString()); }
+        for (double bad : new double[]{0, -1, Double.NaN, Double.POSITIVE_INFINITY}) {
+            try {
+                new MotionSimulator(rs, 180, 600, bad, 0.2, 1L);
+                fail("distance invalid " + bad, "accepted");
+            } catch (IllegalArgumentException e) { check("distance invalid rejected " + bad, true); }
+        }
+        MotionSimulator sim = new MotionSimulator(rs, 180, 600, 1000, 0.2, 1L);
+        for (double[] bad : new double[][]{{0, 130}, {1, 301}, {200, 100},
+                {Double.NaN, 130}, {1, Double.POSITIVE_INFINITY}}) {
+            try {
+                sim.cadence(bad[0], bad[1]);
+                fail("cadence invalid " + bad[0] + "/" + bad[1], "accepted");
+            } catch (IllegalArgumentException e) { check("cadence invalid rejected " + bad[0] + "/" + bad[1], true); }
+        }
+        check("cadence valid 1/300", sim.cadence(1, 300) >= 0.9);
     }
 
     private static void testCadenceAndPaceRange() {

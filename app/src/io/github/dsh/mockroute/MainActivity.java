@@ -167,7 +167,7 @@ public final class MainActivity extends Activity {
             try {
                 route = RouteStore.importUri(this, uri);
                 updateRouteSummary();
-                toast("导入成功：" + route.loops.size() + " 条闭环");
+                toast("导入成功：" + route.loops.size() + " 条路线");
             } catch (Exception ex) {
                 new AlertDialog.Builder(this)
                         .setTitle("路线导入失败")
@@ -194,24 +194,25 @@ public final class MainActivity extends Activity {
             toast(ex.getMessage());
             return;
         }
-        if (fast < 390 || slow > 470 || fast > slow) {
-            toast("配速须在 390–470 秒/公里，且最快 ≤ 最慢（390=6:30，470=7:50）");
+        if (fast < MotionSimulator.MIN_PACE_SEC_PER_KM || slow > MotionSimulator.MAX_PACE_SEC_PER_KM
+                || fast > slow) {
+            toast("配速须在 180–600 秒/公里，且最快 ≤ 最慢（180=3:00，600=10:00）");
             return;
         }
-        if (!(distance > 0) || !Double.isFinite(distance) || distance > 100000) {
-            toast("总距离须为 0–100000 米之间的正数");
+        if (!(distance > 0) || !Double.isFinite(distance)) {
+            toast("总距离须为有限正数（米）");
             return;
         }
         if (lateral < 0 || lateral > 0.5 || !Double.isFinite(lateral)) {
             toast("位置扰动上限须为 0–0.5 米");
             return;
         }
-        if (cadenceMin < 0 || cadenceMax > 300 || cadenceMin > cadenceMax) {
-            toast("程序模拟步频须在 0–300，且下限 ≤ 上限");
+        if (!Double.isFinite(cadenceMin) || !Double.isFinite(cadenceMax)
+                || cadenceMin < MotionSimulator.MIN_CADENCE_SPM
+                || cadenceMax > MotionSimulator.MAX_CADENCE_SPM
+                || cadenceMin > cadenceMax) {
+            toast("步频上下限须在 1–300 spm，且下限 ≤ 上限");
             return;
-        }
-        if (distance < 1500) {
-            toast("提示：悦跑世界最短有效距离为 1500 m；本工具仍按输入值模拟");
         }
         boolean needFine = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED;
         if (needFine) {

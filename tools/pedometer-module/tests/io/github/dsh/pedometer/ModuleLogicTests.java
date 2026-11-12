@@ -75,6 +75,20 @@ public final class ModuleLogicTests {
     }
 
     private static void testResumePauseProtocol() {
+        for (double[] bad : new double[][]{{0, 130}, {1, 301}, {200, 100},
+                {Double.NaN, 130}, {1, Double.POSITIVE_INFINITY}}) {
+            try {
+                new CadenceEngine().start(bad[0], bad[1], 1, 0L, 0);
+                failed++;
+                LOG.append("FAIL cadence engine rejects ").append(bad[0]).append('/').append(bad[1]).append('\n');
+            } catch (IllegalArgumentException e) {
+                passed++;
+                LOG.append("PASS cadence engine rejects ").append(bad[0]).append('/').append(bad[1]).append('\n');
+            }
+        }
+        new CadenceEngine().start(1, 300, 1, 0L, 0);
+        passed++;
+        LOG.append("PASS cadence engine accepts 1/300\n");
         CadenceEngine e = new CadenceEngine();
         check("resume before START is NOT_STARTED",
                 e.resume(1L) == CadenceEngine.ResumeResult.NOT_STARTED);

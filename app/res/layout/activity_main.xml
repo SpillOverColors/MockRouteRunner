@@ -81,7 +81,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="最快配速(秒/公里)" android:textSize="12sp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="最快配速(秒/公里, 180–600)" android:textSize="12sp" />
                 <EditText
                     android:id="@+id/etFast"
                     android:layout_width="match_parent"
@@ -95,7 +95,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="最慢配速(秒/公里)" android:textSize="12sp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="最慢配速(秒/公里, 180–600)" android:textSize="12sp" />
                 <EditText
                     android:id="@+id/etSlow"
                     android:layout_width="match_parent"
@@ -109,7 +109,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="总距离(米)" android:textSize="12sp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="总距离(米, 有限正数)" android:textSize="12sp" />
                 <EditText
                     android:id="@+id/etDistance"
                     android:layout_width="match_parent"
@@ -143,7 +143,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="程序模拟步频下限" android:textSize="12sp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="程序模拟步频下限(1–300 spm)" android:textSize="12sp" />
                 <EditText
                     android:id="@+id/etCadenceMin"
                     android:layout_width="match_parent"
@@ -157,7 +157,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:orientation="vertical">
-                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="程序模拟步频上限" android:textSize="12sp" />
+                <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="程序模拟步频上限(1–300 spm)" android:textSize="12sp" />
                 <EditText
                     android:id="@+id/etCadenceMax"
                     android:layout_width="match_parent"
@@ -170,7 +170,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="步频：程序模拟值仅本机显示；只有目标 App 已用 LSPatch 改包并在运行，才会通过本机回环桥接读取增强步频。未改包的目标 App 仍读真实传感器。"
+            android:text="配速可选 180–600 秒/公里（3:00–10:00），默认 390/470；总距离为有限正数；步频上下限 1–300 spm，默认 100/130，要求下限≤上限。步频程序模拟值仅本机显示；只有目标 App 已用 LSPatch 改包并在运行，才会通过本机回环桥接读取增强步频。未改包的目标 App 仍读真实传感器。"
             android:textColor="#B00020"
             android:textSize="12sp" />
 

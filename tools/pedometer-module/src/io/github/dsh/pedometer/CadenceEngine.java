@@ -32,6 +32,9 @@ final class CadenceEngine {
     private double motionSeconds;
 
     synchronized void start(double lo, double hi, long seed, long nowNanos, long realCounter) {
+        if (!Double.isFinite(lo) || !Double.isFinite(hi) || lo < 1 || hi > 300 || lo > hi) {
+            throw new IllegalArgumentException("cadence must be finite 1..300 with min <= max");
+        }
         min = lo;
         max = hi;
         java.util.Random random = new java.util.Random(seed);

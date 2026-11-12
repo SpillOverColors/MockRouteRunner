@@ -49,8 +49,8 @@ if ($LASTEXITCODE -ne 0) { throw 'core tests failed' }
 if ($LASTEXITCODE -ne 0) { throw 'checkpoint tests failed' }
 
 $manifest = Get-Content -LiteralPath (Join-Path $Root 'app\AndroidManifest.xml') -Raw -Encoding UTF8
-$manifest = $manifest.Replace('android:versionCode="5"', 'android:versionCode="7"')
-$manifest = $manifest.Replace('android:versionName="1.0.4"', 'android:versionName="1.2.0"')
+$manifest = $manifest.Replace('android:versionCode="5"', 'android:versionCode="8"')
+$manifest = $manifest.Replace('android:versionName="1.0.4"', 'android:versionName="1.2.1"')
 $ManifestPath = Join-Path $Build 'AndroidManifest.xml'
 [IO.File]::WriteAllText($ManifestPath, $manifest, (New-Object Text.UTF8Encoding($false)))
 $resZip = Join-Path $Build 'res.zip'
@@ -58,7 +58,7 @@ $resZip = Join-Path $Build 'res.zip'
 if ($LASTEXITCODE -ne 0) { throw 'aapt2 compile failed' }
 $baseApk = Join-Path $Build 'base.apk'
 & $Aapt2 link -o $baseApk -I $AndroidJar --manifest $ManifestPath `
-    --min-sdk-version 26 --target-sdk-version 34 --version-code 7 --version-name 1.2.0 `
+    --min-sdk-version 26 --target-sdk-version 34 --version-code 8 --version-name 1.2.1 `
     --java (Join-Path $Build 'gen') $resZip
 if ($LASTEXITCODE -ne 0) { throw 'aapt2 link failed' }
 $javaSources = @(Get-ChildItem (Join-Path $Root 'app\src') -Recurse -Filter '*.java' | ForEach-Object { $_.FullName })
@@ -81,7 +81,7 @@ try {
 $aligned = Join-Path $Build 'aligned.apk'
 & $ZipAlign -f 4 $unsigned $aligned
 if ($LASTEXITCODE -ne 0) { throw 'zipalign failed' }
-$apk = Join-Path $ApkDir 'MockRouteRunner-1.2.0-debug.apk'
+$apk = Join-Path $ApkDir 'MockRouteRunner-1.2.1-debug.apk'
 & $ApkSigner sign --ks $Keystore --ks-pass pass:android --key-pass pass:android `
     --v4-signing-enabled false --out $apk $aligned
 if ($LASTEXITCODE -ne 0) { throw 'sign failed' }

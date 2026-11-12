@@ -8,7 +8,7 @@
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build-release.ps1
 ```
 
-该脚本运行核心与断点测试，构建主 App，输出 dist/release/apk/MockRouteRunner-1.2.0-debug.apk。
+该脚本运行核心与断点测试，构建主 App，输出 dist/release/apk/MockRouteRunner-1.2.1-debug.apk。
 初次构建会生成本地 .debug-signing/debug.keystore；不含作者私钥，因此签名与作者 APK 不同。
 再次构建保留自己的密钥，不能将它加入公共仓库。默认调试口令不是生产密钥方案。
 构建包含当前图标资源，不必重新运行图标生成脚本。若主动重新生成，另需 Python 和 Pillow。
