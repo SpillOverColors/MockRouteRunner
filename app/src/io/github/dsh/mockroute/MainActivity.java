@@ -89,6 +89,26 @@ public final class MainActivity extends Activity {
         btnResume.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) { requestResume(); }
         });
+        findViewById(R.id.btnAdvanced).setOnClickListener(v -> {
+            View panel = findViewById(R.id.advancedPanel);
+            boolean show = panel.getVisibility() != View.VISIBLE;
+            panel.setVisibility(show ? View.VISIBLE : View.GONE);
+            ((Button) v).setText(show ? "高级设置与日志 · 收起" : "高级设置与日志 · 展开");
+        });
+        findViewById(R.id.btnBattery).setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Exception e) { toast("请到系统设置中找到本应用的省电策略"); }
+        });
+        findViewById(R.id.btnHelp).setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("使用顺序")
+                .setMessage("1. 开启系统定位，在开发者选项选择本应用作为模拟位置应用。\n"
+                        + "2. 导入路线，设置本次总距离和配速；将本应用省电策略设为无限制。\n"
+                        + "3. 开始模拟，确认运行中、目标距离正确、注入次数增加。\n"
+                        + "4. 再打开目标应用，确认位置到达路线后开始记录。\n"
+                        + "5. 先结束目标应用的记录，再停止并清理。程序不会代你打开或提交目标成绩。")
+                .setPositiveButton("知道了", null).show());
         loadRoute();
         handler.post(poll);
         if (Build.VERSION.SDK_INT >= 33
@@ -236,8 +256,7 @@ public final class MainActivity extends Activity {
         new AlertDialog.Builder(this)
                 .setTitle("无法自动枚举其他模拟应用")
                 .setMessage("Android 公开 API 无法列出其他应用的测试位置提供器。\n\n"
-                        + "本应用会检查最近 gps/network 位置的 mock 标记；若 addTestProvider 发现冲突会中止，且不会移除他人的提供器。\n\n"
-                        + "请确认当前没有其他模拟位置应用/测试提供器在运行，再继续。")
+                        + "本应用会检查最近 gps/network 位置的 mock 标记；同名提供器可能被系统替换；请先停止其他模拟工具。\n\n"                        + "请确认当前没有其他模拟位置应用/测试提供器在运行，再继续。")
                 .setPositiveButton("确认并开始", (d, w) ->
                         startMockService(fast, slow, distance, lateral, cadenceMin, cadenceMax))
                 .setNegativeButton("取消", null)
@@ -272,7 +291,7 @@ public final class MainActivity extends Activity {
         btnStop.setEnabled(true);
         btnPause.setEnabled(true);
         btnResume.setEnabled(false);
-        toast("已启动标准 gps 测试提供器；系统会标记 mock");
+        toast("正在启动，请检查状态区的目标距离与注入次数");
     }
 
     private void requestPause() {
@@ -331,7 +350,7 @@ public final class MainActivity extends Activity {
     private void showMockOpDialog() {
         String msg = "本应用尚未获得 android:mock_location。\n\n"
                 + "请在系统 开发者选项 → 选择模拟位置信息应用 中选择“路线模拟器”。\n\n"
-                + "或由 ADB 执行：\n adb shell appops set io.github.dsh.mockroute android:mock_location allow\n\n"
+                + "或由 ADB 执行：\n adb shell appops set " + getPackageName() + " android:mock_location allow\n\n"
                 + "本应用不会自行修改 appop，也不会隐藏 mock 标记。";
         new AlertDialog.Builder(this).setTitle("需要标准模拟位置权限")
                 .setMessage(msg).setPositiveButton("知道了", null).show();

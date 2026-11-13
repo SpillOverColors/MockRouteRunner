@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.Light.DarkActionBar">
-        <item name="android:colorAccent">#2E7D32</item>
-        <item name="android:windowActionModeOverlay">true</item>
-    </style>
+ <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar">
+  <item name="android:fontFamily">sans</item><item name="android:colorAccent">#147D70</item>
+  <item name="android:statusBarColor">#163C43</item><item name="android:navigationBarColor">#F3F6F6</item>
+  <item name="android:windowLightNavigationBar">true</item><item name="android:windowBackground">#F3F6F6</item>
+ </style>
+ <style name="SectionTitle"><item name="android:textSize">18sp</item><item name="android:textColor">#163C43</item><item name="android:textStyle">bold</item><item name="android:layout_width">match_parent</item><item name="android:layout_height">wrap_content</item></style>
+ <style name="Field"><item name="android:layout_width">match_parent</item><item name="android:layout_height">52dp</item><item name="android:textSize">20sp</item><item name="android:singleLine">true</item><item name="android:selectAllOnFocus">true</item><item name="android:paddingStart">8dp</item></style>
+ <style name="Action"><item name="android:layout_height">56dp</item><item name="android:textAllCaps">false</item><item name="android:textSize">15sp</item></style>
 </resources>

@@ -1,14 +1,14 @@
-param(
+﻿param(
     [string]$Out = '',
     [string]$Keystore = ''
 )
 $ErrorActionPreference = 'Stop'
 $Here = $PSScriptRoot
 $Root = Split-Path -Parent (Split-Path -Parent $Here)
-$Sdk = 'C:\Users\zrl00\AppData\Local\Android\Sdk'
+$Sdk = $env:ANDROID_SDK_ROOT
 $Bt = Join-Path $Sdk 'build-tools\36.0.0'
 $Jar = Join-Path $Sdk 'platforms\android-37.0\android.jar'
-$Javac = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin\javac.exe'
+$Javac = (Join-Path $env:JAVA_HOME 'bin\javac.exe')
 if (-not $Out) { $Out = Join-Path $Here 'stepdemo.apk' }
 if (-not $Keystore) { $Keystore = Join-Path $Root '.debug-signing\debug.keystore' }
 $b = Join-Path $Root 'build\stepdemo'

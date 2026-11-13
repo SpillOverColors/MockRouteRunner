@@ -13,6 +13,7 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Process;
 import android.os.SystemClock;
@@ -50,6 +51,11 @@ public final class MockRouteService extends Service {
     private boolean checkpointSaveFailed;
     private Thread worker;
     private NotificationManager notificationManager;
+    private RouteModel.GeoPoint lastInjectedPoint;
+    private long lastInjectedNanos;
+    private volatile boolean networkProviderAdded;
+    private volatile boolean fusedProviderAdded;
+    private final ProviderOwnership providerOwnership = new ProviderOwnership();
 
     @Override
     public void onCreate() {
@@ -204,7 +210,8 @@ public final class MockRouteService extends Service {
                                double cadenceMin, double cadenceMax, long seed, String routeFile,
                                String targetPackage, RunCheckpoint.Saved saved) {
         LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
-        boolean providerAdded = false;
+        boolean networkAdded = false;
+        boolean createdAny = false;
         boolean cleanupFailed = false;
         String terminal = "已停止";
         String terminalText = "用户停止，已清理";
@@ -232,19 +239,48 @@ public final class MockRouteService extends Service {
                 throw new SecurityException("最近一次 gps/network 位置带 mock 标记，可能已有其他模拟位置应用或旧测试提供器。为避免覆盖，拒绝启动；请先停止其他模拟应用并在开发者选项确认。");
             }
             RunState.append("预检：公开 API 无法枚举其他应用测试提供器；最近位置未发现 mock 标记");
-            RunState.append("若 addTestProvider 发现同名测试提供器将中止，且不会主动移除他人提供器");
+            RunState.append("addTestProvider 会替换同名 provider；本应用只清理本次运行成功创建的 provider，"
+                    + "无法证明旧 provider 归属时不会自动删除");
 
             lm.addTestProvider(LocationManager.GPS_PROVIDER,
                     false, true, false, false, false, false, false,
                     Criteria.POWER_LOW, Criteria.ACCURACY_FINE);
-            providerAdded = true;
+            providerOwnership.created(LocationManager.GPS_PROVIDER);
+            createdAny = true;
+            try {
+                lm.addTestProvider(LocationManager.NETWORK_PROVIDER,
+                        true, false, false, false, false, true, true,
+                        Criteria.POWER_LOW, Criteria.ACCURACY_COARSE);
+                networkAdded = true;
+                networkProviderAdded = true;
+                providerOwnership.created(LocationManager.NETWORK_PROVIDER);
+                createdAny = true;
+            } catch (RuntimeException e) {
+                RunState.append("network 测试提供器不可用，仅使用 gps：" + safe(e.getMessage()));
+            }
+            boolean fusedAdded = false;
+            try {
+                lm.addTestProvider("fused",
+                        true, false, false, false, false, true, true,
+                        Criteria.POWER_LOW, Criteria.ACCURACY_FINE);
+                fusedAdded = true;
+                fusedProviderAdded = true;
+                providerOwnership.created("fused");
+                createdAny = true;
+            } catch (RuntimeException e) {
+                RunState.append("fused 测试提供器不可用：" + safe(e.getMessage()));
+            }
             if (saved == null) {
                 RunCheckpoint.clear(this);
                 RunState.checkpointAvailable = false;
                 RunState.checkpointMessage = "无";
             }
             lm.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true);
-            RunState.append("已创建标准 gps 测试提供器（系统会标记 mock）");
+            if (networkAdded) lm.setTestProviderEnabled(LocationManager.NETWORK_PROVIDER, true);
+            if (fusedAdded) lm.setTestProviderEnabled("fused", true);
+            RunState.append(networkAdded
+                    ? "已创建标准 gps/network 测试提供器（系统会标记 mock）"
+                    : "已创建标准 gps 测试提供器（系统会标记 mock）");
             inject(lm, sim.point(), SystemClock.elapsedRealtimeNanos());
             RunState.injections = 1;
             RunState.hasPoint = true;
@@ -361,17 +397,44 @@ public final class MockRouteService extends Service {
             RunState.error = safe(ex.getMessage());
             RunState.append("错误：" + safe(ex.getMessage()));
         } finally {
-            PedometerBridge.stop();
-            if (providerAdded) {
+            boolean cadenceStopped = PedometerBridge.stopAndWait(2500);
+            if (!cadenceStopped) RunState.append("警告：步频桥 STOP 未在 2.5 秒内完成，需目标端确认");
+            if (providerOwnership.owns(LocationManager.GPS_PROVIDER)) {
                 try {
                     lm.removeTestProvider(LocationManager.GPS_PROVIDER);
+                    providerOwnership.removed(LocationManager.GPS_PROVIDER);
                     RunState.append("已移除本应用创建的 gps 测试提供器");
                 } catch (Throwable ex) {
                     cleanupFailed = true;
                     RunState.append("移除 gps 测试提供器失败：" + safe(ex.getMessage()));
                     RunState.error = "清理失败：" + safe(ex.getMessage());
                 }
-            } else {
+            }
+            if (providerOwnership.owns(LocationManager.NETWORK_PROVIDER)) {
+                try {
+                    lm.removeTestProvider(LocationManager.NETWORK_PROVIDER);
+                    networkProviderAdded = false;
+                    providerOwnership.removed(LocationManager.NETWORK_PROVIDER);
+                    RunState.append("已移除本应用创建的 network 测试提供器");
+                } catch (Throwable ex) {
+                    cleanupFailed = true;
+                    RunState.append("移除 network 测试提供器失败：" + safe(ex.getMessage()));
+                    RunState.error = "清理失败：" + safe(ex.getMessage());
+                }
+            }
+            if (providerOwnership.owns("fused")) {
+                try {
+                    lm.removeTestProvider("fused");
+                    fusedProviderAdded = false;
+                    providerOwnership.removed("fused");
+                    RunState.append("已移除本应用创建的 fused 测试提供器");
+                } catch (Throwable ex) {
+                    cleanupFailed = true;
+                    RunState.append("移除 fused 测试提供器失败：" + safe(ex.getMessage()));
+                    RunState.error = "清理失败：" + safe(ex.getMessage());
+                }
+            }
+            if (!createdAny) {
                 RunState.append("没有创建过测试提供器，无需移除");
             }
             RunState.running = false;
@@ -410,14 +473,41 @@ public final class MockRouteService extends Service {
     }
 
     private void inject(LocationManager lm, RouteModel.GeoPoint p, long elapsedNanos) {
-        Location loc = new Location(LocationManager.GPS_PROVIDER);
+        Location loc = locationFor(LocationManager.GPS_PROVIDER, p, elapsedNanos);
+        Location net = networkProviderAdded
+                ? locationFor(LocationManager.NETWORK_PROVIDER, p, elapsedNanos) : null;
+        Location fused = fusedProviderAdded
+                ? locationFor("fused", p, elapsedNanos) : null;
+        lastInjectedPoint = p;
+        lastInjectedNanos = elapsedNanos;
+        lm.setTestProviderLocation(LocationManager.GPS_PROVIDER, loc);
+        if (net != null) lm.setTestProviderLocation(LocationManager.NETWORK_PROVIDER, net);
+        if (fused != null) lm.setTestProviderLocation("fused", fused);
+    }
+
+    private Location locationFor(String provider, RouteModel.GeoPoint p, long elapsedNanos) {
+        Location loc = new Location(provider);
         loc.setLatitude(p.lat);
         loc.setLongitude(p.lon);
         loc.setAccuracy(5.0f);
         loc.setTime(System.currentTimeMillis());
         loc.setElapsedRealtimeNanos(elapsedNanos);
-        // Deliberately no speed/bearing/altitude: this is only a standard mock location.
-        lm.setTestProviderLocation(LocationManager.GPS_PROVIDER, loc);
+        Bundle extras = new Bundle();
+        extras.putInt("satellites", 12);
+        extras.putInt("satellitesVisible", 12);
+        extras.putInt("meanCn0", 40);
+        extras.putInt("maxCn0", 45);
+        loc.setExtras(extras);
+        if (lastInjectedPoint != null && elapsedNanos > lastInjectedNanos) {
+            double dt = (elapsedNanos - lastInjectedNanos) / 1_000_000_000.0;
+            double distance = RouteModel.GeoMath.distance(lastInjectedPoint, p);
+            loc.setSpeed((float) (distance / dt));
+            loc.setBearing((float) RouteModel.GeoMath.bearing(lastInjectedPoint, p));
+        } else {
+            loc.setSpeed(0f);
+            loc.setBearing(0f);
+        }
+        return loc;
     }
 
     private boolean isMockAppopAllowed() {

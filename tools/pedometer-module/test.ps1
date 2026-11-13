@@ -1,8 +1,8 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $Here = $PSScriptRoot
 $Root = Split-Path -Parent (Split-Path -Parent $Here)
-$Javac = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin\javac.exe'
-$Java = 'C:\Program Files\Eclipse Adoptium\jdk-17.0.20.8-hotspot\bin\java.exe'
+$Javac = (Join-Path $env:JAVA_HOME 'bin\javac.exe')
+$Java = (Join-Path $env:JAVA_HOME 'bin\java.exe')
 $b = Join-Path $Root 'build\module-tests'
 Remove-Item -Recurse -Force $b -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $b,(Join-Path $Root 'dist') | Out-Null

@@ -8,9 +8,11 @@ import java.io.PrintWriter;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -93,15 +95,33 @@ final class PedometerBridge {
         });
     }
 
-    static void stop() {
+    /** Stop and wait briefly so the service does not exit before the target receives STOP. */
+    static boolean stopAndWait(long timeoutMs) {
         final String pkg = target;
-        if (!validPackage(pkg)) return;
+        if (!validPackage(pkg)) return true;
         ready = false;
         state = "停止中：" + pkg;
         final long seq = SEQ.incrementAndGet();
+        final CountDownLatch done = new CountDownLatch(1);
+        final boolean[] stopped = {false};
         WORKER.execute(new Runnable() {
-            @Override public void run() { doStop(seq, pkg); }
+            @Override public void run() {
+                try { stopped[0] = doStop(seq, pkg); }
+                finally { done.countDown(); }
+            }
         });
+        if (timeoutMs <= 0) return false;
+        try {
+            if (!done.await(timeoutMs, TimeUnit.MILLISECONDS)) {
+                state = "停止超时：" + pkg;
+                RunState.pedometerStatus = state;
+                return false;
+            }
+            return stopped[0];
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private static void doStart(long seq, String pkg, double min, double max, long seed) {
@@ -117,6 +137,7 @@ final class PedometerBridge {
                 if (!BridgeProtocol.startOk(reply, pkg)) {
                     throw new IOException(reply == null ? "START 无响应" : reply);
                 }
+                if (seq != SEQ.get()) return;
                 ready = true;
                 state = "就绪：" + pkg + ":" + portFor(pkg);
                 RunState.pedometerStatus = "就绪 " + pkg + ":" + portFor(pkg);
@@ -196,7 +217,7 @@ final class PedometerBridge {
         }
     }
 
-    private static void doStop(long seq, String pkg) {
+    private static boolean doStop(long seq, String pkg) {
         try {
             Socket s = open(pkg);
             try {
@@ -209,11 +230,13 @@ final class PedometerBridge {
                     throw new IOException(reply == null ? "STOP 无响应" : reply);
                 }
                 state = "已停止：" + pkg;
+                return true;
             } finally {
                 close(s);
             }
         } catch (Exception e) {
             state = "停止失败：" + safe(e.getMessage());
+            return false;
         } finally {
             ready = false;
             if (seq == SEQ.get()) {

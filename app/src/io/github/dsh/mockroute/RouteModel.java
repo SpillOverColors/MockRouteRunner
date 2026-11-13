@@ -204,6 +204,14 @@ public final class RouteModel {
             if (lon < -180) lon += 360;
             return new GeoPoint(a.lat + (b.lat - a.lat) * f, lon);
         }
+        public static double bearing(GeoPoint a, GeoPoint b) {
+            double lat = Math.toRadians((a.lat + b.lat) / 2.0);
+            double east = (b.lon - a.lon) * Math.cos(lat);
+            double north = b.lat - a.lat;
+            double deg = Math.toDegrees(Math.atan2(east, north));
+            return (deg + 360.0) % 360.0;
+        }
+
         public static GeoPoint offset(GeoPoint p, double east, double north) {
             double lat = p.lat + Math.toDegrees(north / R);
             double c = Math.max(1e-6, Math.cos(Math.toRadians(p.lat)));
