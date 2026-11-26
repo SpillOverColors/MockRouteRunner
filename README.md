@@ -20,7 +20,7 @@
 
 ## 先下载什么
 
-普通用户只需要 Releases 中的 `MockRouteRunner-1.3.1.apk`。不需要安装 StepDemo、AMapDiag 或 FakeLocation，也不需要申请高德 Key。主应用没有集成高德 SDK，不会用你的高德配额。
+普通用户只需要 Releases 中的 `MockRouteRunner-1.4.0.apk`。不需要安装 StepDemo、AMapDiag 或 FakeLocation，也不需要申请高德 Key。主应用没有集成高德 SDK，不会用你的高德配额。
 
 从零操作请看 **[两个校园跑软件使用教程](docs/从零开始使用教程.md)**。第一次使用建议顺着教程做完系统设置，再开始，不要直接切到目标应用。
 
