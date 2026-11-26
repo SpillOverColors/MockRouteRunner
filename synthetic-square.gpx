@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="MockRouteRunner synthetic example"
+     xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>SYNTHETIC TEST LOOP - NOT CAMPUS</name>
+    <desc>仅用于离线导入测试的合成方形闭环；坐标在 (0,0) 附近，不对应任何校园或真实地点。不会自动运行。</desc>
+  </metadata>
+  <trk>
+    <name>SYNTHETIC TEST LOOP - NOT CAMPUS</name>
+    <trkseg>
+      <trkpt lat="0.0000000" lon="0.0000000" />
+      <trkpt lat="0.0000000" lon="0.0010000" />
+      <trkpt lat="0.0010000" lon="0.0010000" />
+      <trkpt lat="0.0010000" lon="0.0000000" />
+      <trkpt lat="0.0000000" lon="0.0000000" />
+    </trkseg>
+  </trk>
+</gpx>
