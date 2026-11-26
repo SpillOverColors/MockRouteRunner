@@ -1,7 +1,0 @@
-/build/
-/dist/
-/.debug-signing/
-*.apk
-*.keystore
-*.jks
-local.properties
