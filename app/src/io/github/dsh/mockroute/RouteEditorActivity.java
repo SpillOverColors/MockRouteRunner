@@ -43,6 +43,7 @@ public final class RouteEditorActivity extends Activity {
     private CheckBox cbOpenRoute;
     private Button btnApplyJunction, btnAddPoint, btnEditPoint, btnDeletePoint, btnMoveUp, btnMoveDown;
     private boolean openRoute;
+    private EditText routeName;
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -62,12 +63,23 @@ public final class RouteEditorActivity extends Activity {
         btnMoveDown = findViewById(R.id.btnMoveDown);
         try {
             RouteModel.RouteSet rs = RouteStore.load(this);
-            if (rs == null) { toast("没有已导入的路线"); finish(); return; }
-            junction = rs.junction;
-            for (RouteModel.RouteLoop l : rs.loops) loops.add(new EditLoop(l.name, l.points));
-            openRoute = rs.isOpenSingle();
-            etJLat.setText(fmt(junction.lat));
-            etJLon.setText(fmt(junction.lon));
+            routeName = findViewById(R.id.etRouteName);
+            if (rs == null) {
+                loops.add(new EditLoop("", Collections.emptyList()));
+                openRoute = true;
+            } else {
+                junction = rs.junction;
+                for (RouteModel.RouteLoop l : rs.loops) loops.add(new EditLoop(l.name, l.points));
+                openRoute = rs.isOpenSingle();
+                etJLat.setText(fmt(junction.lat));
+                etJLon.setText(fmt(junction.lon));
+            }
+            if (loops.size() == 1) {
+                routeName.setText(loops.get(0).name);
+                spinner.setVisibility(View.GONE);
+            } else {
+                routeName.setVisibility(View.GONE);
+            }
         } catch (Exception ex) {
             toast("路线读取失败：" + ex.getMessage());
             finish();
@@ -76,6 +88,11 @@ public final class RouteEditorActivity extends Activity {
         cbOpenRoute.setChecked(openRoute);
         cbOpenRoute.setEnabled(loops.size() <= 1);
         cbOpenRoute.setOnCheckedChangeListener((button, checked) -> {
+            if (!checked && !currentLoop().points.isEmpty()) {
+                junction = currentLoop().points.get(0);
+                etJLat.setText(fmt(junction.lat));
+                etJLon.setText(fmt(junction.lon));
+            }
             openRoute = checked;
             selectedPoint = -1;
             applyMode();
@@ -121,7 +138,10 @@ public final class RouteEditorActivity extends Activity {
         try {
             RouteModel.GeoPoint p = new RouteModel.GeoPoint(parse(etJLat, "lat"), parse(etJLon, "lon"));
             junction = p;
-            for (EditLoop l : loops) l.points.set(0, p);
+            for (EditLoop l : loops) {
+                if (l.points.isEmpty()) l.points.add(p);
+                else l.points.set(0, p);
+            }
             selectedPoint = -1;
             rebuildPoints();
             status("共享路口已更新；所有闭环的首尾点同步。");
@@ -135,6 +155,7 @@ public final class RouteEditorActivity extends Activity {
         if (loops.isEmpty()) return;
         EditLoop loop = loops.get(Math.max(0, Math.min(selectedLoop, loops.size() - 1)));
         int start = firstEditablePoint();
+        btnAddPoint.setEnabled(loop.points.size() < 99);
         if (loop.points.size() <= start) {
             TextView v = new TextView(this);
             v.setText(openRoute ? "没有可编辑点。" : "没有中间途经点。请新增点。");
@@ -158,7 +179,11 @@ public final class RouteEditorActivity extends Activity {
         EditLoop loop = currentLoop();
         if (loop == null) return;
         int first = firstEditablePoint();
-        RouteModel.GeoPoint base = selectedPoint >= first && selectedPoint < loop.points.size()
+        if (!openRoute && loop.points.isEmpty()) {
+            applyJunction();
+            if (loop.points.isEmpty()) return;
+        }
+        RouteModel.GeoPoint base = loop.points.isEmpty() ? null : selectedPoint >= first && selectedPoint < loop.points.size()
                 ? loop.points.get(selectedPoint) : loop.points.get(loop.points.size() - 1);
         askPoint("新增 WGS84 途经点", base, (p) -> {
             int at = selectedPoint >= first ? selectedPoint + 1 : loop.points.size();
@@ -227,13 +252,13 @@ public final class RouteEditorActivity extends Activity {
         note.setText("WGS84；顺序 lat,lon（纬度,经度）");
         box.addView(note);
         EditText lat = new EditText(this);
-        lat.setHint("lat");
+        lat.setHint("纬度，例如 31.2304");
         lat.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
-        lat.setText(fmt(initial.lat));
+        if (initial != null) lat.setText(fmt(initial.lat));
         EditText lon = new EditText(this);
-        lon.setHint("lon");
+        lon.setHint("经度，例如 121.4737");
         lon.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL | InputType.TYPE_NUMBER_FLAG_SIGNED);
-        lon.setText(fmt(initial.lon));
+        if (initial != null) lon.setText(fmt(initial.lon));
         box.addView(lat);
         box.addView(lon);
         new AlertDialog.Builder(this).setTitle(title).setView(box)
@@ -248,6 +273,11 @@ public final class RouteEditorActivity extends Activity {
 
     private void save() {
         try {
+            if (loops.size() == 1) {
+                String name = routeName.getText().toString().trim();
+                if (name.isEmpty()) throw new IllegalArgumentException("请填写路线名称");
+                loops.get(0).name = name;
+            }
             if (openRoute) {
                 if (loops.size() != 1) throw new IllegalArgumentException("开放折线请只保留一条路线");
                 EditLoop l = loops.get(0);

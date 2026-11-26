@@ -13,6 +13,7 @@ public final class CoreTests {
         String logPath = args.length > 0 ? args[0] : null;
         try {
             testGpxSingleLoop();
+            testEditorXmlRoundTrip();
             testJsonTwoSharedLoops();
             testOpenPolyline();
             testRejectMultipleOpen();
@@ -49,6 +50,20 @@ public final class CoreTests {
                     (LOG.toString() + summary).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         }
         if (failed > 0) System.exit(1);
+    }
+
+    private static void testEditorXmlRoundTrip() {
+        // These endpoints are within the 20 m auto-closure tolerance.
+        String open = "{\"routes\":[{\"name\":\"A & <B>\",\"closed\":false,"
+                + "\"points\":[[0,0],[0,0.001],[0,0.00001]]}]}";
+        RouteModel.RouteSet original = RouteModel.parseJson(open, "current_route.json");
+        RouteModel.RouteSet loaded = RouteModel.parseAuto(RouteModel.toGpx(original), "current_route.xml");
+        check("XML preserves short-gap open route", loaded.isOpenSingle());
+        check("XML preserves escaped route name", "A & <B>".equals(loaded.loops.get(0).name));
+        check("XML preserves ordered coordinates", RouteModel.toJson(original).equals(RouteModel.toJson(loaded)));
+        original = twoLoops();
+        loaded = RouteModel.parseGpx(RouteModel.toGpx(original), "two.xml");
+        check("XML preserves all loops and their shared junction", RouteModel.toJson(original).equals(RouteModel.toJson(loaded)));
     }
 
     private static void testGpxSingleLoop() {

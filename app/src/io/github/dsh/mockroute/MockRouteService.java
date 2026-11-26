@@ -11,15 +11,19 @@ import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.location.Criteria;
 import android.location.Location;
+import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Process;
 import android.os.SystemClock;
 
 import java.io.File;
 import java.util.Locale;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Foreground service that owns the test provider. The provider is removed only
@@ -220,7 +224,7 @@ public final class MockRouteService extends Service {
             if (routeFile == null) throw new IllegalArgumentException("缺少路线文件");
             File rf = new File(routeFile);
             String text = readText(rf);
-            RouteModel.RouteSet routes = RouteModel.parseJson(text, rf.getName());
+            RouteModel.RouteSet routes = RouteModel.parseAuto(text, rf.getName());
             MotionSimulator sim = saved == null
                     ? new MotionSimulator(routes, fast, slow, distance, lateral, seed)
                     : MotionSimulator.restore(routes, fast, slow, distance, lateral, seed, saved.snapshot);
@@ -235,6 +239,13 @@ public final class MockRouteService extends Service {
             if (!hasFinePermission()) {
                 throw new SecurityException("缺少精确位置权限");
             }
+            RunState.state = "等待真实定位";
+            updateNotification("准备开始", "正在等待系统返回新的真实定位");
+            if (!awaitRealFix(lm)) {
+                if (stopRequested) return;
+                throw new IllegalStateException("45 秒内未取得新的真实定位。请确认系统定位已开启，可到室外重试。");
+            }
+            if (stopRequested) return;
             if (recentMockLocation(lm)) {
                 throw new SecurityException("最近一次 gps/network 位置带 mock 标记，可能已有其他模拟位置应用或旧测试提供器。为避免覆盖，拒绝启动；请先停止其他模拟应用并在开发者选项确认。");
             }
@@ -382,10 +393,21 @@ public final class MockRouteService extends Service {
                             String.format(Locale.US, "%.1f / %.0f m，模拟配速 %s/km",
                                     sim.totalDistance(), distance, SimFmt(sim)));
                 }
-                if (sim.reachedTarget()) {
+                if (sim.reachedTarget() && consecutiveFailures == 0) {
                     terminal = "已完成";
-                    terminalText = "已达到总距离，正在清理";
-                    RunState.append("已达到总距离，停止并清理");
+                    terminalText = "已解除终点的模拟位置";
+                    PedometerBridge.pause();
+                    RunCheckpoint.clear(this);
+                    RunState.checkpointAvailable = false;
+                    RunState.checkpointMessage = "无";
+                    RunState.cadence = 0;
+                    RunState.paceSecPerKm = 0;
+                    RunState.state = "已完成";
+                    RunState.holdingEndpoint = true;
+                    RunState.completionNotice = true;
+                    updateNotification("已完成目标距离", "模拟位置保持在终点，点此返回或使用停止操作解除");
+                    // Leave our explicit test providers at their last fix until the user releases them.
+                    while (!stopRequested) Thread.sleep(200);
                     break;
                 }
                 nextNanos = SystemClock.elapsedRealtimeNanos() + nextWaitNanos(sim);
@@ -437,6 +459,7 @@ public final class MockRouteService extends Service {
             if (!createdAny) {
                 RunState.append("没有创建过测试提供器，无需移除");
             }
+            RunState.holdingEndpoint = false;
             RunState.running = false;
             RunState.paused = false;
             RunState.finished = true;
@@ -520,6 +543,38 @@ public final class MockRouteService extends Service {
 
     /** Best-effort only: public Android APIs cannot enumerate other apps' test providers. */
     @SuppressWarnings("deprecation")
+    private boolean awaitRealFix(LocationManager lm) throws InterruptedException {
+        long started = SystemClock.elapsedRealtimeNanos();
+        CountDownLatch received = new CountDownLatch(1);
+        LocationListener listener = new LocationListener() {
+            @Override public void onLocationChanged(Location fix) {
+                if (!fix.isFromMockProvider() && fix.getElapsedRealtimeNanos() >= started) {
+                    received.countDown();
+                }
+            }
+            @Override public void onProviderEnabled(String provider) {}
+            @Override public void onProviderDisabled(String provider) {}
+            @Override public void onStatusChanged(String provider, int status, Bundle extras) {}
+        };
+        try {
+            boolean registered = false;
+            for (String provider : new String[]{LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER}) {
+                if (lm.isProviderEnabled(provider)) {
+                    lm.requestLocationUpdates(provider, 0, 0, listener, Looper.getMainLooper());
+                    registered = true;
+                }
+            }
+            if (!registered) throw new IllegalStateException("请启用 GPS 或网络定位后重试");
+            long deadline = started + TimeUnit.SECONDS.toNanos(45);
+            while (!stopRequested && SystemClock.elapsedRealtimeNanos() < deadline) {
+                if (received.await(200, TimeUnit.MILLISECONDS)) return true;
+            }
+            return false;
+        } finally {
+            lm.removeUpdates(listener);
+        }
+    }
+
     private boolean recentMockLocation(LocationManager lm) {
         long now = System.currentTimeMillis();
         String[] providers = {LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER};

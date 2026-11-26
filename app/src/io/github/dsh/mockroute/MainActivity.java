@@ -18,16 +18,20 @@ import android.text.method.ScrollingMovementMethod;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.math.BigDecimal;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
     private static final int REQ_IMPORT = 10;
+    private static final int REQ_EXPORT = 13;
     private static final int REQ_PERMISSIONS = 11;
 
-    private TextView tvRoute, tvState, tvLive, tvLog;
+    private TextView tvRoute, tvState, tvDistance, tvLive, tvLog;
+    private ProgressBar distanceProgress;
     private EditText etFast, etSlow, etDistance, etLateral, etCadenceMin, etCadenceMax, etTargetPkg;
     private Button btnStart, btnStop, btnEdit, btnImportGpx, btnImportJson, btnPause, btnResume;
     private RouteModel.RouteSet route;
@@ -46,6 +50,8 @@ public final class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         tvRoute = findViewById(R.id.tvRoute);
         tvState = findViewById(R.id.tvState);
+        tvDistance = findViewById(R.id.tvDistance);
+        distanceProgress = findViewById(R.id.distanceProgress);
         tvLive = findViewById(R.id.tvLive);
         tvLog = findViewById(R.id.tvLog);
         etFast = findViewById(R.id.etFast);
@@ -64,31 +70,29 @@ public final class MainActivity extends Activity {
         btnImportJson = findViewById(R.id.btnImportJson);
         tvLog.setMovementMethod(new ScrollingMovementMethod());
 
-        btnImportGpx.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { openRoutePicker(); }
-        });
-        btnImportJson.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { openRoutePicker(); }
-        });
+        View.OnClickListener importRoute = v -> openRoutePicker();
+        btnImportGpx.setOnClickListener(importRoute);
+        btnImportJson.setOnClickListener(importRoute);
         btnEdit.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View v) {
-                if (route == null) { toast("请先导入路线"); return; }
                 if (RunState.running) { toast("运行中不能编辑路线"); return; }
                 startActivity(new Intent(MainActivity.this, RouteEditorActivity.class));
             }
         });
-        btnStart.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { tryStart(); }
+        btnStart.setOnClickListener(v -> tryStart());
+        btnStop.setOnClickListener(v -> requestStop());
+        findViewById(R.id.btnReleaseLocation).setOnClickListener(v -> {
+            if (RunState.paused || RunState.holdingEndpoint) requestStop();
         });
-        btnStop.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { requestStop(); }
+        findViewById(R.id.btnExportXml).setOnClickListener(v -> {
+            if (route == null) return;
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("application/xml");
+            intent.putExtra(Intent.EXTRA_TITLE, route.loops.get(0).name.replace('/', '_') + ".xml");
+            startActivityForResult(intent, REQ_EXPORT);
         });
-        btnPause.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { requestPause(); }
-        });
-        btnResume.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { requestResume(); }
-        });
+        btnPause.setOnClickListener(v -> requestPause());
+        btnResume.setOnClickListener(v -> requestResume());
         findViewById(R.id.btnAdvanced).setOnClickListener(v -> {
             View panel = findViewById(R.id.advancedPanel);
             boolean show = panel.getVisibility() != View.VISIBLE;
@@ -111,10 +115,17 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("知道了", null).show());
         loadRoute();
         handler.post(poll);
+        java.util.List<String> permissions = new java.util.ArrayList<>();
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION);
+        }
         if (Build.VERSION.SDK_INT >= 33
                 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 12);
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS);
         }
+        if (savedInstanceState == null && !permissions.isEmpty())
+            requestPermissions(permissions.toArray(new String[0]), 12);
     }
 
     @Override protected void onResume() {
@@ -139,9 +150,10 @@ public final class MainActivity extends Activity {
     }
 
     private void updateRouteSummary() {
+        findViewById(R.id.btnExportXml).setEnabled(route != null);
         if (route == null) {
-            tvRoute.setText("尚未导入路线。支持多条共起终点的闭合环；WGS84，顺序为 lat,lon。");
-            btnEdit.setEnabled(false);
+            tvRoute.setText("还没有路线。点「编辑路线点」输入经纬度新建，也可以导入已有文件。");
+            btnEdit.setEnabled(!RunState.running);
             return;
         }
         StringBuilder b = new StringBuilder();
@@ -181,6 +193,17 @@ public final class MainActivity extends Activity {
 
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQ_EXPORT && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            try (java.io.OutputStream out = getContentResolver().openOutputStream(data.getData(), "wt")) {
+                if (out == null || route == null) throw new java.io.IOException("无法写入路线文件");
+                out.write(RouteModel.toGpx(route).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            } catch (Exception ex) {
+                toast("导出失败：" + ex.getMessage());
+                return;
+            }
+            toast("路线 XML 已导出");
+            return;
+        }
         if (requestCode == REQ_IMPORT && resultCode == RESULT_OK && data != null) {
             Uri uri = data.getData();
             if (uri == null) { toast("未选择文件"); return; }
@@ -377,38 +400,55 @@ public final class MainActivity extends Activity {
         boolean paused = RunState.paused;
         boolean checkpoint = RunCheckpoint.exists(this);
         RunState.checkpointAvailable = checkpoint;
-        runOnUiThread(() -> {
-            String state = RunState.state == null ? "空闲" : RunState.state;
-            if (RunState.error != null && RunState.error.length() > 0) {
-                tvState.setText("状态：" + state + "；" + RunState.error);
-            } else {
-                tvState.setText("状态：" + state);
-            }
-            double target = RunState.target;
-            String coord = RunState.hasPoint
-                    ? String.format(Locale.US, "%.7f,%.7f", RunState.lat, RunState.lon)
-                    : "—";
-            String routeMode = route != null && route.isOpenSingle() ? "开放折返" : "闭环";
-            tvLive.setText(String.format(Locale.US,
-                    "距离 %.1f / %.0f m\n模拟配速 %s（程序计算，非目标应用读数）\n程序模拟步频 %.1f（仅本机显示）\n路线 %s [%s]  注入 %d 次  切换 %d 次\n坐标 %s  (WGS84 lat,lon)\n断点 %s  步频桥 %s",
-                    RunState.distance, target,
-                    MotionSimulator.formatPace(RunState.paceSecPerKm),
-                    RunState.cadence,
-                    RunState.loopName == null || RunState.loopName.isEmpty() ? "—" : RunState.loopName,
-                    routeMode,
-                    RunState.injections, RunState.crossings,
-                    coord,
-                    RunState.checkpointMessage == null ? "无" : RunState.checkpointMessage,
-                    RunState.pedometerStatus));
-            tvLog.setText(RunState.log);
-            btnStart.setEnabled(!running);
-            btnStop.setEnabled(running);
-            btnPause.setEnabled(running && !paused);
-            btnResume.setEnabled((running && paused) || (!running && checkpoint));
-            btnImportGpx.setEnabled(!running);
-            btnImportJson.setEnabled(!running);
-            btnEdit.setEnabled(!running && route != null);
-        });
+        String state = RunState.state == null ? "空闲" : RunState.state;
+        if (RunState.error != null && RunState.error.length() > 0) {
+            tvState.setText("状态：" + state + "；" + RunState.error);
+        } else {
+            tvState.setText("状态：" + state);
+        }
+        double target = RunState.target;
+        double distance = RunState.distance;
+        boolean hasTarget = target > 0;
+        tvDistance.setVisibility(hasTarget ? View.VISIBLE : View.GONE);
+        distanceProgress.setVisibility(hasTarget ? View.VISIBLE : View.GONE);
+        if (hasTarget) {
+            // Use tenths of a percent so short distances show progress without rounding up to 100%.
+            int progress = "已完成".equals(state) ? distanceProgress.getMax()
+                    : (int) (distanceProgress.getMax() * Math.min(1, distance / target));
+            distanceProgress.setProgress(progress);
+            tvDistance.setText(String.format(Locale.US, "已跑 %.1f / %s 米　%.1f%%",
+                    distance, BigDecimal.valueOf(target).stripTrailingZeros().toPlainString(), progress / 10.0));
+        }
+
+        String coord = RunState.hasPoint
+                ? String.format(Locale.US, "%.7f,%.7f", RunState.lat, RunState.lon)
+                : "—";
+        String routeMode = route != null && route.isOpenSingle() ? "开放折返" : "闭环";
+        tvLive.setText(String.format(Locale.US,
+                "模拟配速  %s 分/公里\n模拟步频  %.1f 步/分\n路线 %s [%s]  注入 %d 次  切换 %d 次\n坐标 %s  (WGS84 lat,lon)\n断点 %s  步频桥 %s",
+                MotionSimulator.formatPace(RunState.paceSecPerKm),
+                RunState.cadence,
+                RunState.loopName == null || RunState.loopName.isEmpty() ? "—" : RunState.loopName,
+                routeMode,
+                RunState.injections, RunState.crossings,
+                coord,
+                RunState.checkpointMessage == null ? "无" : RunState.checkpointMessage,
+                RunState.pedometerStatus));
+        tvLog.setText(RunState.log);
+        btnStart.setEnabled(!running);
+        btnStop.setEnabled(running);
+        btnPause.setEnabled(running && !paused && "运行中".equals(state));
+        findViewById(R.id.btnReleaseLocation).setEnabled(running && (paused || RunState.holdingEndpoint));
+        if (hasWindowFocus() && RunState.completionNotice && !isFinishing()) {
+            RunState.completionNotice = false;
+            new AlertDialog.Builder(this).setTitle("已完成目标距离")
+                    .setMessage("模拟位置停在终点。点「解除模拟位置」可恢复系统定位。")
+                    .setPositiveButton("知道了", null).show();
+        }
+        btnResume.setEnabled((running && paused) || (!running && checkpoint));
+        btnImportGpx.setEnabled(!running);
+        btnImportJson.setEnabled(!running);
+        btnEdit.setEnabled(!running);
     }
 
     private static int parseInt(EditText e, String label) {

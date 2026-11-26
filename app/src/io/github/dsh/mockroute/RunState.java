@@ -7,6 +7,8 @@ final class RunState {
     static volatile boolean running;
     static volatile boolean paused;
     static volatile boolean finished;
+    static volatile boolean holdingEndpoint;
+    static volatile boolean completionNotice;
     static volatile String state = "空闲";
     static volatile String error = "";
     static volatile String loopName = "";
@@ -31,6 +33,8 @@ final class RunState {
         running = true;
         paused = false;
         finished = false;
+        holdingEndpoint = false;
+        completionNotice = false;
         state = "启动中";
         error = "";
         loopName = "";

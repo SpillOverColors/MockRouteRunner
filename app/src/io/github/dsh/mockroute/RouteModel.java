@@ -250,37 +250,27 @@ public final class RouteModel {
             NodeList segs = doc.getElementsByTagNameNS("*", "trkseg");
             for (int i = 0; i < segs.getLength(); i++) {
                 Element seg = (Element) segs.item(i);
-                List<GeoPoint> pts = new ArrayList<>();
-                NodeList ch = seg.getChildNodes();
-                for (int j = 0; j < ch.getLength(); j++) {
-                    Node n = ch.item(j);
-                    if (n instanceof Element && "trkpt".equals(local(n))) pts.add(gpxPoint((Element) n));
-                }
+                List<GeoPoint> pts = gpxPoints(seg, "trkpt");
                 String name = childText((Element) seg.getParentNode(), "name");
                 raw.add(new RawLoop(name == null ? "路线" + (raw.size() + 1) : name, pts));
             }
             NodeList rtes = doc.getElementsByTagNameNS("*", "rte");
             for (int i = 0; i < rtes.getLength(); i++) {
                 Element rte = (Element) rtes.item(i);
-                List<GeoPoint> pts = new ArrayList<>();
-                NodeList ch = rte.getChildNodes();
-                for (int j = 0; j < ch.getLength(); j++) {
-                    Node n = ch.item(j);
-                    if (n instanceof Element && "rtept".equals(local(n))) pts.add(gpxPoint((Element) n));
-                }
+                List<GeoPoint> pts = gpxPoints(rte, "rtept");
                 String name = childText(rte, "name");
-                raw.add(new RawLoop(name == null ? "路线" + (raw.size() + 1) : name, pts));
+                NodeList modes = rte.getElementsByTagNameNS(ROUTE_NAMESPACE, "closed");
+                String mode = modes.getLength() == 0 ? "" : modes.item(0).getTextContent();
+                Boolean closed = "false".equals(mode) ? Boolean.FALSE
+                        : "true".equals(mode) ? Boolean.TRUE : null;
+                raw.add(new RawLoop(name == null ? "路线" + (raw.size() + 1) : name, pts, closed));
             }
+            // Older GPX exports may put track points directly under the track.
             if (raw.isEmpty()) {
                 NodeList trks = doc.getElementsByTagNameNS("*", "trk");
                 for (int i = 0; i < trks.getLength(); i++) {
                     Element trk = (Element) trks.item(i);
-                    List<GeoPoint> pts = new ArrayList<>();
-                    NodeList ch = trk.getChildNodes();
-                    for (int j = 0; j < ch.getLength(); j++) {
-                        Node n = ch.item(j);
-                        if (n instanceof Element && "trkpt".equals(local(n))) pts.add(gpxPoint((Element) n));
-                    }
+                    List<GeoPoint> pts = gpxPoints(trk, "trkpt");
                     if (!pts.isEmpty()) raw.add(new RawLoop(childText(trk, "name"), pts));
                 }
             }
@@ -486,6 +476,19 @@ public final class RouteModel {
         return out;
     }
 
+    private static List<GeoPoint> gpxPoints(Element parent, String pointTag) {
+        // Only direct children belong to this segment or route. Extensions can contain nested points.
+        List<GeoPoint> points = new ArrayList<>();
+        NodeList children = parent.getChildNodes();
+        for (int i = 0; i < children.getLength(); i++) {
+            Node child = children.item(i);
+            if (child instanceof Element && pointTag.equals(local(child))) {
+                points.add(gpxPoint((Element) child));
+            }
+        }
+        return points;
+    }
+
     private static GeoPoint gpxPoint(Element e) {
         String la = e.getAttribute("lat"), lo = e.getAttribute("lon");
         if (la == null || lo == null || la.length() == 0 || lo.length() == 0) {
@@ -516,12 +519,37 @@ public final class RouteModel {
         return null;
     }
 
+    private static final String ROUTE_NAMESPACE = "urn:mock-route:v1";
+
+    /** Preserve the mode even when the two ends of an open route are close together. */
+    public static String toGpx(RouteSet routes) {
+        StringBuilder xml = new StringBuilder("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+        xml.append("<gpx xmlns=\"http://www.topografix.com/GPX/1/1\" xmlns:mr=\"")
+                .append(ROUTE_NAMESPACE).append("\" version=\"1.1\" creator=\"MockRouteRunner\">\n");
+        for (RouteLoop loop : routes.loops) {
+            String name = loop.name.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+            xml.append("  <rte><name>").append(name).append("</name>\n")
+                    .append("    <extensions><mr:closed>").append(loop.closed)
+                    .append("</mr:closed></extensions>\n");
+            int count = loop.points.size();
+            for (int i = 0; i < count + (loop.closed ? 1 : 0); i++) {
+                GeoPoint point = loop.points.get(i % count);
+                xml.append("    <rtept lat=\"").append(java.math.BigDecimal.valueOf(point.lat).toPlainString())
+                        .append("\" lon=\"").append(java.math.BigDecimal.valueOf(point.lon).toPlainString())
+                        .append("\"/>\n");
+            }
+            xml.append("  </rte>\n");
+        }
+        return xml.append("</gpx>\n").toString();
+    }
+
     public static String toJson(RouteSet rs) {
         StringBuilder b = new StringBuilder();
         b.append("{\n  \"format\": \"mock-route/v1\",\n  \"wgs84\": true,\n");
         if (rs.hasJunction()) {
-            b.append("  \"junction\": [")
-                    .append(fmt(rs.junction.lat)).append(", ").append(fmt(rs.junction.lon)).append("],\n");
+            b.append("  \"junction\": ");
+            appendJsonPoint(b, rs.junction);
+            b.append(",\n");
         }
         b.append("  \"routes\": [\n");
         for (int i = 0; i < rs.loops.size(); i++) {
@@ -530,11 +558,11 @@ public final class RouteModel {
                     .append(l.closed).append(", \"points\": [");
             for (int j = 0; j < l.points.size(); j++) {
                 if (j > 0) b.append(", ");
-                GeoPoint p = l.points.get(j);
-                b.append('[').append(fmt(p.lat)).append(", ").append(fmt(p.lon)).append(']');
+                appendJsonPoint(b, l.points.get(j));
             }
             if (l.closed) {
-                b.append(", [").append(fmt(rs.junction.lat)).append(", ").append(fmt(rs.junction.lon)).append("]");
+                b.append(", ");
+                appendJsonPoint(b, rs.junction);
             }
             b.append("]}");
             if (i + 1 < rs.loops.size()) b.append(',');
@@ -542,6 +570,10 @@ public final class RouteModel {
         }
         b.append("  ]\n}\n");
         return b.toString();
+    }
+
+    private static void appendJsonPoint(StringBuilder json, GeoPoint point) {
+        json.append('[').append(fmt(point.lat)).append(", ").append(fmt(point.lon)).append(']');
     }
 
     private static String fmt(double d) { return String.format(Locale.US, "%.7f", d); }

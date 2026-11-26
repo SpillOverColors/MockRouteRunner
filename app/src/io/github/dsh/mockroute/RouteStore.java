@@ -15,27 +15,29 @@ final class RouteStore {
     private RouteStore() {}
 
     static File file(Context c) {
-        return new File(c.getFilesDir(), "current_route.json");
+        File xml = new File(c.getFilesDir(), "current_route.xml");
+        return xml.isFile() ? xml : new File(c.getFilesDir(), "current_route.json");
     }
 
     static RouteModel.RouteSet load(Context c) throws IOException {
         File f = file(c);
         if (!f.isFile()) return null;
         String text = readFile(f);
-        return RouteModel.parseJson(text, f.getName());
+        return RouteModel.parseAuto(text, f.getName());
     }
 
     static void save(Context c, RouteModel.RouteSet rs) throws IOException {
-        File f = file(c);
+        File f = new File(c.getFilesDir(), "current_route.xml");
+        String xml = RouteModel.toGpx(rs);
+        RouteModel.parseGpx(xml, f.getName()); // Validate before replacing the active route.
         File tmp = new File(f.getParentFile(), f.getName() + ".tmp");
         FileOutputStream out = new FileOutputStream(tmp);
         try {
-            out.write(RouteModel.toJson(rs).getBytes(StandardCharsets.UTF_8));
+            out.write(xml.getBytes(StandardCharsets.UTF_8));
             out.getFD().sync();
         } finally {
             out.close();
         }
-        if (f.exists() && !f.delete()) throw new IOException("无法替换旧路线文件");
         if (!tmp.renameTo(f)) throw new IOException("无法保存路线文件");
     }
 
