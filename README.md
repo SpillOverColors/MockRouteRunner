@@ -53,3 +53,5 @@
 主应用为原生Java，Android 8.0及以上，目标SDK34。构建方式见 [BUILDING.md](BUILDING.md)，第三方边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`tools/`保留自有开发测试源码，不是用户必装附件。
 
 每版变化见 [CHANGELOG.md](CHANGELOG.md)。源码使用 [CC BY-NC 4.0](LICENSE) 协议（仅限非商业用途）；第三方平台、SDK和目标应用不因此获得授权。请保留原作者和第三方许可证。
+
+北京大学燕园 5 公里路线的 XML、GPX 和导入步骤见[示例目录](examples/pku_yanyuan_5km/导入说明.md)。

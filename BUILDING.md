@@ -22,3 +22,12 @@ powershell -ExecutionPolicy Bypass -File .\build.ps1
 powershell -ExecutionPolicy Bypass -File .\tools\pedometer-module\test.ps1
 ```
 模块40项、真实loopback协议9项；主构建核心104项、断点25项、ownership13项。测试通过不等于目标应用每项功能已实测。可选模块编译见其目录build.ps1，第三方LSPatch运行时不随本包分发；本包不提供或承诺商业目标APK改包结果。
+
+## 根目录构建脚本
+
+| 脚本 | 用途 |
+| --- | --- |
+| `build.ps1` | 当前 1.4.0 源码包的构建入口，按上文步骤使用。 |
+| `build-acceptance.ps1` | 历史验收构建，脚本包含针对 1.0.4 的版本替换规则。 |
+| `build-p2.ps1` | 历史 P2 阶段构建，输出 `dist/p2/MockRouteRunner-p2.apk`。 |
+| `build-release.ps1` | 历史图标与 P2 构建，输出名固定为 `MockRouteRunner-1.2.1-debug.apk`。 |
