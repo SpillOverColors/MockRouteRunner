@@ -1,4 +1,4 @@
-# Pedometer adapter module (MIT)
+# Pedometer adapter module (CC BY-NC 4.0)
 
 LSPatch-embedded Xposed legacy module. Hooks `SensorManager.registerListener`
 inside the patched app process and wraps step-counter/step-detector listeners.

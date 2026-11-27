@@ -30,7 +30,7 @@ D238FDC414D121B7FA454D8B4CCF420DF3A8C97D563761861FF92BD9C5DA2165
 
 从项目官方仓库的对应发布版本获取，并核对文件名和校验值：<https://github.com/JingMatrix/LSPatch>。对应版本源码入口为 <https://github.com/JingMatrix/LSPatch/tree/v1.2>。本地核对的该版本根目录许可证为 GPL-3.0；JAR 内的 Apache 组件声明不代表整个 LSPatch 都是 Apache 许可。
 
-项目自有代码与 LSPatch 分别说明许可。带 LSPatch 的 StepDemo 改包产物也不能整体标作纯 MIT。公开再分发这类二进制前，需要准备与所用二进制对应的完整源码、构建资料及许可履行材料；仅放一个仓库链接不应被当作已经完成这些要求。本次公共源码包宜不附带第三方 JAR、带该运行时的改包 APK，也不分发校园跑 App 原包或改包。
+项目自有代码与 LSPatch 分别说明许可。带 LSPatch 的 StepDemo 改包产物也不能仅按项目自有代码的 CC BY-NC 4.0 许可分发。公开再分发这类二进制前，需要准备与所用二进制对应的完整源码、构建资料及许可履行材料；仅放一个仓库链接不应被当作已经完成这些要求。本次公共源码包宜不附带第三方 JAR、带该运行时的改包 APK，也不分发校园跑 App 原包或改包。
 
 ## 执行改包
 

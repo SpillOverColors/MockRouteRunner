@@ -172,7 +172,7 @@ $report = @"
 
 - Do not install over the official app: signature differs. Manual install requires a separate copy/uninstall decision by the user.
 - This tool does not uninstall, replace, or submit any target-app data.
-- LSPatch v1.2 is GPL-3.0; the module and this tool are MIT. The patched copy embeds the GPL runtime. See THIRD_PARTY_NOTICES.md and tools/lspatch/LICENSE.
+- LSPatch v1.2 is GPL-3.0; the module and this tool are licensed under CC BY-NC 4.0. The patched copy embeds the GPL runtime. See THIRD_PARTY_NOTICES.md and third-party-notices/LSPatch-GPL-3.0.txt.
 "@
 [IO.File]::WriteAllLines((Join-Path $OutDir 'report.md'), $report, (New-Object Text.UTF8Encoding($false)))
 [IO.File]::WriteAllLines((Join-Path $OutDir 'report.log'), $log, (New-Object Text.UTF8Encoding($false)))
