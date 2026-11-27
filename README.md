@@ -1,55 +1,28 @@
-# MockRouteRunner · 路线模拟器
+# Pedometer adapter module (CC BY-NC 4.0)
 
-**听说有人苦校园跑久矣？**
+LSPatch-embedded Xposed legacy module. Hooks `SensorManager.registerListener`
+inside the patched app process and wraps step-counter/step-detector listeners.
+It injects `SensorEvent` values at a configurable 1–300 spm cadence
+(default 100–130), with finite min <= max validation.
 
-把路线导进来，设好距离和配速，就能在 Android 上沿路线连续模拟位置。需要暂时离开时，可以暂停保存断点，回来继续。这一版把常用操作重新排了一遍：先选路线，再填参数，最后开始；总距离单独放大，运行状态一直可见，日志和可选步频桥接收进高级区域。
-
-
-**当前正式版：1.4.0 **
-
-现在可以直接在平板上创建路线。首次打开会请求定位权限，Android 13 及以上也会请求通知权限。网络权限由 Android 在安装时授予。开始模拟前会等待一次新的真实 GPS 或网络定位，最多等待 45 秒。达到目标距离后会停止运动、保持终点的模拟位置。应用在前台会弹窗，在后台可以从通知回到应用。点页面底部的「解除模拟位置」即可交还系统定位。
-
-### 用经纬度创建路线 XML
-
-1. 在首页点「编辑路线点」，给路线起名，例如“河边往返”。
-2. 默认是到终点原路折返。点「新增点」，先填 WGS84 纬度，再填经度。可以用 `31.2304, 121.4737` 作起点，用 `31.2314, 121.4737` 作第二点。两点约相距 111 米。
-3. 要画一圈，取消勾选「开放折线」，填起点并点「应用」，再添加至少两个不同途经点。程序会自动接回起点。每条新路线最多 99 个点，长度至少 10 米。点列表中的坐标可以选中，再编辑或调整顺序。
-4. 点「保存路线」即可回到首页。软件把路线存成 XML，并在下次启动时自动选中。需要把文件带走时，点「导出当前路线 XML」并选择保存位置。以后也可以用「导入 GPX / XML」重新打开、编辑并保存。
-
-
-
-## 先下载什么
-
-普通用户只需要 Releases 中的 `MockRouteRunner-1.4.0.apk`。不需要安装 StepDemo、AMapDiag 或 FakeLocation，也不需要申请高德 Key。主应用没有集成高德 SDK，不会用你的高德配额。
-
-从零操作请看 **[两个校园跑软件使用教程](docs/从零开始使用教程.md)**。第一次使用建议顺着教程做完系统设置，再开始，不要直接切到目标应用。
-
-## 现在能做什么
-
-- 导入 GPX、GPX 结构的 XML、JSON；依据内容识别，不只看文件后缀。
-- 编辑 WGS84 经纬度点，新增、删除、调整顺序。
-- 单条开放折线到端点原路折返；闭环循环，多条闭环需共享路口。
-- 设置总距离、配速区间、位置扰动和程序模拟步频。
-- 暂停保存断点、继续；达到总距离后停止并清理。
-
-配速单位是秒/公里：390 是 6分30秒，470 是 7分50秒。允许范围为180–600。总距离单位是米，必须为有限正数。步频允许1–300，默认100–130；位置扰动0–0.5米，默认0.3米。
-
-## 两个应用的使用反馈
-
-本机 Xiaomi Pad 6 / Android 14 测试中，步道乐跑实际单次记录超过10km，最终汇报10.37km并上传成功；悦跑世界实际沿跑道记录超过4km；运动世界也实测可以定位，但可能显示gps信号弱无法开启跑步。
-
-两个重要经验：**先让路线模拟器运行并产生新位置，再打开目标应用**；小米/HyperOS 要检查实际运行的这个应用是否已设为“无限制”。悦跑世界1.1.23的“定位源”应选择“系统定位服务”。步道没有找到同类公开开关，本次通过正确启动顺序实现定位。
-
-## 仍需知道的边界
-
-这是标准显式模拟位置，系统保留 mock 标记。程序不会自动打开目标应用，也不会自动提交成绩。目标是否计入有效记录由其版本、配置和规则决定，本项目不保证所有设备或应用版本都兼容。
-
-程序显示的步频是计算值，不等于目标应用收到的步频。可选桥接依赖另外适配的目标进程，默认目标包名本身不是兼容证明；普通定位用户可清空该项。当前未取得两个目标App都实际读取所设步频的完整证据。
-
-本版本保留了历史实测中的模拟卫星质量扩展字段；这些字段不是硬件测量，不能当作真实卫星信号。未提供地图式路线编辑、自动路网规划、随机起终点、必经点或可视化轨迹导出。XML指GPX结构，不是任意XML。
-
-## 源码和构建
-
-主应用为原生Java，Android 8.0及以上，目标SDK34。构建方式见 [BUILDING.md](BUILDING.md)，第三方边界见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。`tools/`保留自有开发测试源码，不是用户必装附件。
-
-每版变化见 [CHANGELOG.md](CHANGELOG.md)。源码使用 [CC BY-NC 4.0](LICENSE) 协议（仅限非商业用途）；第三方平台、SDK和目标应用不因此获得授权。请保留原作者和第三方许可证。
+- Scope: only the patched app process; no system hooks.
+- Control: loopback only on a package-derived port in `39000–39999`
+  (FNV-1a of the target package), commands `AUTH`, `HELLO <package>`,
+  `START <package> <min> <max> <seed>`, `PAUSE`, `RESUME`, `STOP`, `STATUS`.
+- Bounded: at most 2 live connections, socket timeouts, 192-byte line limit,
+  12 commands/connection. The static session key is coordination, not security.
+- Target isolation: `START`/`HELLO` must match the current process package;
+  only the main process starts the server. The 1000-port hash cannot guarantee
+  uniqueness: two packages may collide, and multiple processes of the same
+  package share the port. Only the expected sensor-consumer (main) process is
+  supported; a secondary-process consumer is not controllable.
+- `HELLO` is a readiness/target check, not authentication. Any local process
+  that learns the package and key can attempt the handshake.
+- PAUSE/STOP invalidate queued Handler deliveries by engine generation; each
+  proxy also has a registration gate so `unregisterListener` invalidates its
+  already-queued deliveries. Motion phase advances by actual active elapsed
+  time, not planned interval.
+- No remote listener; no route UI modification.
+- The Xposed API is provided by LSPatch at runtime; only our classes are packaged.
+- Offline tests: `tools\pedometer-module\test.ps1` (generation cancellation,
+  actual active time, counter floor, multi-sensor/manager mapping).
